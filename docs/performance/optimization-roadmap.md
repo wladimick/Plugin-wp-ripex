@@ -154,9 +154,25 @@ Detailed implementation note: `docs/performance/phases/phase-06-exports-batching
 
 ## P1 — cache/invalidation
 
-**Status:** next proposed phase.
+**Status:** Phase 07 implemented; integrated staging validation pending.
 
-Extend bounded cache use to stable aggregates where useful. Cache keys must include role, user scope and filter range. Invalidate on relevant order/product/customer changes rather than relying only on TTL.
+Phase 07 adds generation-based cache keys so expensive aggregates can be reused without relying only on TTL for freshness.
+
+Implementation:
+
+- maintain independent generations for `orders`, `products`, `customers` and `categories`;
+- include role, user ID, report range and relevant data generations in report result keys;
+- retain the existing 10-minute Admin report TTL and add an isolated 5-minute Vendedor report TTL;
+- make `force_refresh` bypass reads while refreshing the current-generation cache;
+- cache only the final inactive-customer top-12 component for 10 minutes, keyed by role/user plus order/customer generations and independent of report date range;
+- bump order/product/customer generations from normal WooCommerce/WordPress mutation hooks at most once per domain/request;
+- cache the non-sensitive Inventory category selector for one hour using a separate category generation so stock changes do not invalidate it;
+- do not persistently cache order details, customer details, editable forms, seller ownership sets or inventory rows;
+- let obsolete transient keys expire naturally instead of performing broad database deletion.
+
+Acceptance gate: cached/uncached payload parity, strict seller cache isolation, correct generation changes after normal mutations, and materially faster repeated report loads without stale current-generation data.
+
+Detailed implementation note: `docs/performance/phases/phase-07-cache-invalidation.md`.
 
 ## P2 — HPOS compatibility
 
