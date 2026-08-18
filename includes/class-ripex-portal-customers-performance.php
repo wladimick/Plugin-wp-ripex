@@ -109,15 +109,22 @@ final class Ripex_Portal_Customers_Performance {
       "SELECT user_id, meta_value
        FROM {$wpdb->usermeta}
        WHERE meta_key = 'afreg_additional_42207'
-         AND meta_value <> ''
        ORDER BY user_id ASC, umeta_id ASC"
     );
 
+    // get_user_meta($id, key, true) uses one value. Honor the first historical
+    // row per user instead of allowing a later duplicate assignment to widen
+    // seller scope.
     $ids = [];
+    $seen = [];
     foreach ((array) $rows as $row) {
+      $customer_id = (int) $row->user_id;
+      if (isset($seen[$customer_id])) continue;
+      $seen[$customer_id] = true;
+
       $normalized = (string) $this->portal_call('normalize_vendor_label', (string) $row->meta_value);
       if ($normalized !== '' && in_array($normalized, $labels, true)) {
-        $ids[(int) $row->user_id] = true;
+        $ids[$customer_id] = true;
       }
     }
 
@@ -263,12 +270,6 @@ final class Ripex_Portal_Customers_Performance {
     foreach ($index as $raw) {
       $customer = $this->project_customer($raw);
 
-      // Vendor scope was already resolved from normalized assignment labels;
-      // keep the original helper as defense in depth for the final candidate.
-      if ($role === 'ripex_vendedor' && !$this->portal_call('customer_assigned_to_vendor', $customer['id'], $user_id)) {
-        continue;
-      }
-
       $customer_city_key = (string) $this->portal_call('normalize_text_key', $customer['city']);
       if ($customer['city'] !== '') {
         $cities_available[$customer_city_key ?: $customer['city']] = $customer['city'];
@@ -313,6 +314,14 @@ final class Ripex_Portal_Customers_Performance {
     if ($total_pages > 0 && $page > $total_pages) $page = $total_pages;
     $offset = ($page - 1) * $per_page;
     $page_rows = array_slice($matching, $offset, $per_page);
+
+    // Final seller-scope defense is intentionally bounded to the response page
+    // rather than re-reading usermeta for the complete seller directory.
+    if ($role === 'ripex_vendedor' && !empty($page_rows)) {
+      $page_rows = array_values(array_filter($page_rows, function($customer) use ($user_id) {
+        return $this->portal_call('customer_assigned_to_vendor', (int) $customer['id'], $user_id);
+      }));
+    }
 
     $this->json_ok([
       'customers' => array_values($page_rows),
