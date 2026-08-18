@@ -28,9 +28,14 @@ Date: 2026-08-18
 - Added Phase 04 customer-directory pagination and set-oriented metadata loading.
 - Customer listing no longer starts with several `WP_User_Query` passes of up to 1,000 users followed by repeated per-user metadata reads.
 - Admin customer/wholesaler plus commercial-metadata fallback scope is preserved.
-- Seller customer assignment continues to use normalized `afreg_additional_42207` rules with the existing scope helper as defense in depth.
+- Seller customer assignment continues to use normalized `afreg_additional_42207` rules with a bounded final scope check.
 - Customer listing now returns 50 rows per request with true filtered totals and previous/next navigation.
 - Existing RUT, razón social, giro, city/region, vendedor and customer-history drawer behavior are preserved by the Phase 04 bridge/UI.
+- Added Phase 05 role/capability lifecycle optimization.
+- Normal requests no longer invoke the original constructor's complete `ensure_roles_caps()` reconciliation loop.
+- RIPEX role reconciliation is now driven by a stored schema signature containing the candidate version and the granted `shop_manager` capability hash, with critical-role repair checks.
+- The original activation path still creates/reconciles roles, and upgrades perform one migration before recording the completed signature.
+- The portal constructor hook contract is reproduced by the lifecycle bridge while keeping the same `Ripex_Portal` singleton for all endpoint bridges.
 
 ### Documentation
 
@@ -42,11 +47,12 @@ Date: 2026-08-18
 - Added Phase 02 search parity/acceptance checklist.
 - Added Phase 03 inventory pagination/performance checklist.
 - Added Phase 04 customer directory pagination/scope checklist.
+- Added Phase 05 roles/capabilities lifecycle, activation, rollback and validation documentation.
 
 ### Validation status
 
-- GitHub Actions checks PHP syntax on 8.0 and 8.3 and JavaScript syntax.
-- Reportes P0, vendor-order Phase 01, orders-search Phase 02, inventory Phase 03 and customers Phase 04 are implemented in the draft branch.
+- GitHub Actions checks PHP syntax on 8.0 and 8.3, JavaScript syntax and Phase 05 constructor/lifecycle hook parity.
+- Reportes P0 and Phases 01–05 are implemented in the draft branch.
 - **Integrated staging functional parity and before/after performance measurements are intentionally deferred until the current optimization block is complete.**
 - No merge/deployment to production is authorized before that validation block passes.
 
