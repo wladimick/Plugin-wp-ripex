@@ -226,8 +226,8 @@ final class Ripex_Portal_Inventory_Performance {
 
   /**
    * Product-category choices change far less often than inventory rows. Cache
-   * only this non-sensitive facet and key it by the product generation so a
-   * product/category mutation makes the old value unreachable immediately.
+   * only this non-sensitive facet and key it by the category generation so
+   * stock changes do not invalidate it unnecessarily.
    */
   private function inventory_categories_cached() {
     if (!class_exists('Ripex_Portal_Cache_Performance')) {
@@ -237,7 +237,7 @@ final class Ripex_Portal_Inventory_Performance {
     $key = Ripex_Portal_Cache_Performance::key(
       'inventory-categories',
       [],
-      ['products']
+      ['categories']
     );
     $cached = get_transient($key);
     if ($cached !== false) return (array) $cached;
