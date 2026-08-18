@@ -33,6 +33,15 @@ final class Ripex_Portal_Observability {
     self::$queries_at_boot = function_exists('get_num_queries') ? (int) get_num_queries() : 0;
     self::$memory_at_boot = memory_get_usage(true);
 
+    // Cache probes run before the real endpoint callback. A hit is primed through
+    // the matching dynamic pre_transient filter so the actual endpoint consumes
+    // the already-read value instead of performing a second cache lookup.
+    if ($action === 'ripex_portal_get_reports') {
+      add_action('wp_ajax_ripex_portal_get_reports', [__CLASS__, 'probe_report_cache'], 1);
+    } elseif ($action === 'ripex_portal_get_products') {
+      add_action('wp_ajax_ripex_portal_get_products', [__CLASS__, 'probe_inventory_categories_cache'], 1);
+    }
+
     // WordPress normally runs its shutdown action even when wp_send_json() exits.
     // The native shutdown fallback keeps the metric available for abnormal exits.
     add_action('shutdown', [__CLASS__, 'emit'], PHP_INT_MAX);
@@ -77,6 +86,78 @@ final class Ripex_Portal_Observability {
     }
 
     return sanitize_key((string) reset($user->roles)) ?: 'other';
+  }
+
+  private static function prime_transient($key, $component) {
+    $key = (string) $key;
+    if ($key === '') {
+      self::mark_cache($component, 'off');
+      return false;
+    }
+
+    $value = get_transient($key);
+    if ($value === false) {
+      self::mark_cache($component, 'miss');
+      return false;
+    }
+
+    self::mark_cache($component, 'hit');
+    add_filter('pre_transient_' . $key, function($pre) use ($value) {
+      return $value;
+    }, 1, 1);
+    return true;
+  }
+
+  public static function probe_report_cache() {
+    if (!class_exists('Ripex_Portal_Cache_Performance')) {
+      self::mark_cache('reports_result', 'off');
+      self::mark_cache('inactive_customers', 'off');
+      return;
+    }
+
+    $role = self::current_role();
+    if (!in_array($role, ['ripex_admin', 'ripex_vendedor'], true)) return;
+
+    $date_from = isset($_POST['date_from']) ? sanitize_text_field(wp_unslash($_POST['date_from'])) : '';
+    $date_to = isset($_POST['date_to']) ? sanitize_text_field(wp_unslash($_POST['date_to'])) : '';
+    if (!$date_from) $date_from = gmdate('Y-m-d', strtotime('-30 days'));
+    if (!$date_to) $date_to = gmdate('Y-m-d');
+
+    $force_refresh = !empty($_POST['force_refresh']);
+    if ($force_refresh) {
+      self::mark_cache('reports_result', 'bypass');
+      self::mark_cache('inactive_customers', 'bypass');
+      return;
+    }
+
+    $user_id = get_current_user_id();
+    $report_key = Ripex_Portal_Cache_Performance::key(
+      'reports-result',
+      [$role, (int) $user_id, $date_from, $date_to],
+      ['orders', 'products', 'customers']
+    );
+    self::prime_transient($report_key, 'reports_result');
+
+    $inactive_key = Ripex_Portal_Cache_Performance::key(
+      'reports-inactive-customers',
+      [$role, (int) $user_id],
+      ['orders', 'customers']
+    );
+    self::prime_transient($inactive_key, 'inactive_customers');
+  }
+
+  public static function probe_inventory_categories_cache() {
+    if (!class_exists('Ripex_Portal_Cache_Performance')) {
+      self::mark_cache('inventory_categories', 'off');
+      return;
+    }
+
+    $key = Ripex_Portal_Cache_Performance::key(
+      'inventory-categories',
+      [],
+      ['categories']
+    );
+    self::prime_transient($key, 'inventory_categories');
   }
 
   private static function fatal_summary() {
