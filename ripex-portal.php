@@ -20,6 +20,7 @@ require_once RIPEX_PORTAL_PATH . 'includes/class-ripex-portal-orders-performance
 require_once RIPEX_PORTAL_PATH . 'includes/class-ripex-portal-orders-search-performance.php';
 require_once RIPEX_PORTAL_PATH . 'includes/class-ripex-portal-inventory-performance.php';
 require_once RIPEX_PORTAL_PATH . 'includes/class-ripex-portal-customers-performance.php';
+require_once RIPEX_PORTAL_PATH . 'includes/class-ripex-portal-exports-performance.php';
 require_once RIPEX_PORTAL_PATH . 'includes/validaciones.php';
 
 register_activation_hook(__FILE__, ['Ripex_Portal', 'activate']);
