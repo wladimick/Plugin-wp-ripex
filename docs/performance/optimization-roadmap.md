@@ -91,11 +91,29 @@ Detailed implementation note: `docs/performance/phases/phase-03-inventory-pagina
 
 ## P1 — Clientes
 
-**Status:** next proposed phase.
+**Status:** Phase 04 implemented; integrated staging validation pending.
 
-Replace up-to-1000-user multi-query loads and PHP filtering with backend pagination and targeted filters. Preserve RUT, razón social, giro, ciudad and vendedor behavior.
+The original customer directory could run multiple `WP_User_Query` passes of up to 1,000 users and then perform per-user metadata reads, normalization, filtering and sorting before returning as many as 1,000 rows.
+
+Phase 04:
+
+- preserve the admin union of customer/wholesaler roles and RIPEX commercial-metadata fallback users;
+- preserve normalized seller assignment through `afreg_additional_42207` and keep `customer_assigned_to_vendor()` as defense in depth;
+- resolve basic users and only the customer-list metadata fields in bounded set-oriented queries;
+- retain the first metadata value per key to match `get_user_meta(..., true)` behavior;
+- preserve city/region precedence, RUT, razón social, giro and vendedor fields;
+- paginate at 50 customers per request;
+- add previous/next customer navigation and true filtered totals;
+- preserve the existing customer-history drawer and response contract;
+- isolate the new customer directory UI in `customers-pagination.js` rather than modifying the large base `portal.js`.
+
+Acceptance gate: complete eligible customer scope remains navigable with identical role boundaries and customer fields while one browser request no longer returns/processes the previous up-to-1,000-row directory payload.
+
+Detailed implementation note: `docs/performance/phases/phase-04-customers-pagination.md`.
 
 ## P1 — roles/capabilities lifecycle
+
+**Status:** next proposed phase.
 
 Stop reconciling RIPEX role capabilities on every request. Run capability migrations on activation/version migration instead.
 
@@ -118,7 +136,7 @@ Add optional debug-only instrumentation for endpoint duration, peak memory and q
 ## Integrated deployment/test sequence
 
 1. implement agreed P0/P1 phases in the draft branch;
-2. keep PHP 8.0/8.3 CI checks green after each phase;
+2. keep PHP 8.0/8.3 and JavaScript syntax CI checks green after each phase;
 3. deploy the complete candidate to staging;
 4. run functional parity by role;
 5. repeat browser/server captures from the baseline protocol;
