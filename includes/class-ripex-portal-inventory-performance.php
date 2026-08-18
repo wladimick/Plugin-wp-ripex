@@ -224,6 +224,33 @@ final class Ripex_Portal_Inventory_Performance {
     return $rows;
   }
 
+  /**
+   * Product-category choices change far less often than inventory rows. Cache
+   * only this non-sensitive facet and key it by the product generation so a
+   * product/category mutation makes the old value unreachable immediately.
+   */
+  private function inventory_categories_cached() {
+    if (!class_exists('Ripex_Portal_Cache_Performance')) {
+      return (array) $this->portal_call('inventory_categories');
+    }
+
+    $key = Ripex_Portal_Cache_Performance::key(
+      'inventory-categories',
+      [],
+      ['products']
+    );
+    $cached = get_transient($key);
+    if ($cached !== false) return (array) $cached;
+
+    $categories = (array) $this->portal_call('inventory_categories');
+    set_transient(
+      $key,
+      $categories,
+      Ripex_Portal_Cache_Performance::INVENTORY_CATEGORIES_TTL
+    );
+    return $categories;
+  }
+
   public function ajax_get_products() {
     $this->portal_call('check_ajax_access');
     $this->portal_call('require_wc_or_die');
@@ -242,7 +269,7 @@ final class Ripex_Portal_Inventory_Performance {
 
     $this->json_ok([
       'products' => $rows,
-      'categories' => (array) $this->portal_call('inventory_categories'),
+      'categories' => $this->inventory_categories_cached(),
       'page' => (int) $query['page'],
       'per_page' => (int) $query['per_page'],
       'total' => (int) $query['total'],
