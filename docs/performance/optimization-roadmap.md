@@ -49,17 +49,33 @@ Detailed implementation note: `docs/performance/phases/phase-01-vendor-order-sco
 
 ## P1 — Pedidos search
 
-**Status:** next phase.
+**Status:** Phase 02 implemented; integrated staging validation pending.
 
-Move search into the backend query before pagination. Current post-query filtering can miss matches outside the currently loaded page. Preserve search across order number/id, customer, company, email, RUT, razón social, giro, vendedor and payment label where practical without reintroducing unbounded object scans.
+The original orders endpoint paginated first and searched only the already-loaded ~30 order objects, so valid matches on later pages could appear to not exist.
+
+Phase 02:
+
+- resolve candidate order IDs from the historic searchable fields before pagination;
+- preserve current AFREG usermeta-first / order-snapshot fallback behavior;
+- apply status/date filters before WooCommerce object creation;
+- apply vendor scope before pagination;
+- validate the exact historic PHP search string before totals/page calculation;
+- paginate only the true matching set;
+- delegate all no-search requests unchanged to Phase 01.
+
+Acceptance gate: search results are independent of the user's current unfiltered page, totals/pagination match the real result set, and vendor isolation remains exact.
+
+Detailed implementation note: `docs/performance/phases/phase-02-orders-search.md`.
+
+## P1 — Inventario
+
+**Status:** proposed Phase 03.
+
+Replace the current up-to-500 product/variation batch with true backend pagination (target 50–100 rows) and server-side sorting/filtering. Preserve the current inventory response fields and search behavior while avoiding large per-request product object collections.
 
 ## P1 — Clientes
 
 Replace up-to-1000-user multi-query loads and PHP filtering with backend pagination and targeted filters. Preserve RUT, razón social, giro, ciudad and vendedor behavior.
-
-## P1 — Inventario
-
-Replace the current up-to-500 product/variation batch with true backend pagination (target 50–100 rows) and server-side sorting/filtering.
 
 ## P1 — roles/capabilities lifecycle
 
