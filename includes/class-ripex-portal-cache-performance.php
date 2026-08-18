@@ -32,16 +32,19 @@ final class Ripex_Portal_Cache_Performance {
     add_action('woocommerce_refund_deleted', [__CLASS__, 'invalidate_orders']);
     add_action('save_post_shop_order', [__CLASS__, 'invalidate_orders'], 10, 3);
 
-    // Products/stock/categories used by Reportes and Inventario facets.
+    // Product/stock changes affect Reportes stock/no-movement calculations.
     add_action('woocommerce_new_product', [__CLASS__, 'invalidate_products']);
     add_action('woocommerce_update_product', [__CLASS__, 'invalidate_products']);
     add_action('woocommerce_product_set_stock', [__CLASS__, 'invalidate_products']);
     add_action('woocommerce_variation_set_stock', [__CLASS__, 'invalidate_products']);
     add_action('save_post_product', [__CLASS__, 'invalidate_products'], 10, 3);
     add_action('save_post_product_variation', [__CLASS__, 'invalidate_products'], 10, 3);
-    add_action('created_product_cat', [__CLASS__, 'invalidate_products']);
-    add_action('edited_product_cat', [__CLASS__, 'invalidate_products']);
-    add_action('delete_product_cat', [__CLASS__, 'invalidate_products']);
+
+    // Inventory category choices use hide_empty=false, so only taxonomy
+    // create/edit/delete needs to invalidate that facet cache.
+    add_action('created_product_cat', [__CLASS__, 'invalidate_categories']);
+    add_action('edited_product_cat', [__CLASS__, 'invalidate_categories']);
+    add_action('delete_product_cat', [__CLASS__, 'invalidate_categories']);
 
     // Customer/commercial metadata affects customer lists and report labels.
     add_action('profile_update', [__CLASS__, 'invalidate_customers'], 10, 2);
@@ -54,7 +57,7 @@ final class Ripex_Portal_Cache_Performance {
 
   public static function generation($domain) {
     $domain = sanitize_key((string) $domain);
-    if (!in_array($domain, ['orders', 'products', 'customers'], true)) return 1;
+    if (!in_array($domain, ['orders', 'products', 'customers', 'categories'], true)) return 1;
     return max(1, (int) get_option(self::OPTION_PREFIX . $domain, 1));
   }
 
@@ -69,7 +72,7 @@ final class Ripex_Portal_Cache_Performance {
 
   private static function bump($domain) {
     $domain = sanitize_key((string) $domain);
-    if (!in_array($domain, ['orders', 'products', 'customers'], true)) return;
+    if (!in_array($domain, ['orders', 'products', 'customers', 'categories'], true)) return;
     if (!empty(self::$bumped[$domain])) return;
     self::$bumped[$domain] = true;
 
@@ -90,6 +93,10 @@ final class Ripex_Portal_Cache_Performance {
     self::bump('customers');
   }
 
+  public static function invalidate_categories() {
+    self::bump('categories');
+  }
+
   public static function maybe_invalidate_customer_meta($meta_id, $user_id, $meta_key, $meta_value = null) {
     $relevant = [
       'afreg_additional_42210', // RUT
@@ -99,6 +106,8 @@ final class Ripex_Portal_Cache_Performance {
       'afreg_additional_46135', // crédito
       'ripex_vendor_label',
       'nickname',
+      'first_name',
+      'last_name',
       'billing_first_name',
       'billing_last_name',
       'billing_company',
