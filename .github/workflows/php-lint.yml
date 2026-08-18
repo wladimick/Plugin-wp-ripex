@@ -33,3 +33,6 @@ jobs:
           while IFS= read -r -d '' file; do
             node --check "$file"
           done < <(find assets/js -type f -name '*.js' -print0)
+      - name: Check Phase 05 lifecycle hook parity
+        shell: bash
+        run: php tests/check-role-lifecycle-hook-parity.php
