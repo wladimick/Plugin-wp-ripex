@@ -136,7 +136,10 @@ final class Ripex_Portal_Observability {
       [$role, (int) $user_id, $date_from, $date_to],
       ['orders', 'products', 'customers']
     );
-    self::prime_transient($report_key, 'reports_result');
+
+    // A full report hit returns before the endpoint ever needs the component
+    // cache, so stop here to avoid adding an observational lookup of our own.
+    if (self::prime_transient($report_key, 'reports_result')) return;
 
     $inactive_key = Ripex_Portal_Cache_Performance::key(
       'reports-inactive-customers',
