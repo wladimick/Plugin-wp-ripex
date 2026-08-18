@@ -50,6 +50,13 @@ Date: 2026-08-18
 - Normal order/product/customer mutations bump the relevant generation at most once per PHP request, making old transient keys unreachable without bulk deletion from `wp_options`.
 - Inventory category definitions are cached for one hour with a separate `categories` generation, so routine stock changes do not invalidate the selector.
 - Permission-sensitive order/customer/inventory row/detail responses remain uncached.
+- Added Phase 08 opt-in AJAX observability.
+- Observability is disabled by default and activates only when `RIPEX_PORTAL_OBSERVABILITY` is explicitly true.
+- Enabled RIPEX AJAX requests emit one non-sensitive `[RIPEX PERF]` metric with action, RIPEX role, request duration, PHP peak memory, memory delta, query delta, HTTP status and cache state when available.
+- No user/customer/order/product IDs, RUTs, names, emails, selected ranges, search terms, payloads, SQL text or fatal error messages are included in the metric.
+- Report and Inventory category cache probes classify hit/miss/bypass while priming cache hits for the real callback so the same transient lookup is not repeated.
+- A full Reportes cache hit does not probe the inactive-customer component, avoiding unnecessary observer work on the warm path.
+- Best-effort response timing headers are available when headers have not already been committed; the structured log line remains the authoritative Phase 08 signal.
 
 ### Documentation
 
@@ -64,11 +71,13 @@ Date: 2026-08-18
 - Added Phase 05 roles/capabilities lifecycle, activation, rollback and validation documentation.
 - Added Phase 06 export batching, CSV parity, legacy seller-creator and performance validation documentation.
 - Added Phase 07 cache generations, invalidation matrix, cache isolation, TTL and staging validation documentation.
+- Added Phase 08 observability metric definitions, privacy boundary, activation/rollback, cache probes and staging measurement plan.
 
 ### Validation status
 
 - GitHub Actions checks PHP syntax on 8.0 and 8.3, JavaScript syntax and Phase 05 constructor/lifecycle hook parity.
-- Reportes P0 and Phases 01–07 are implemented in the draft branch.
+- Reportes P0 and Phases 01–08 are implemented in the draft branch.
+- Phase 08 remains disabled by default until the controlled staging measurement window.
 - **Integrated staging functional parity and before/after performance measurements are intentionally deferred until the current optimization block is complete.**
 - No merge/deployment to production is authorized before that validation block passes.
 
