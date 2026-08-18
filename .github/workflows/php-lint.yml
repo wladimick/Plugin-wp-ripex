@@ -36,3 +36,26 @@ jobs:
       - name: Check Phase 05 lifecycle hook parity
         shell: bash
         run: php tests/check-role-lifecycle-hook-parity.php
+      - name: Build installable plugin ZIP
+        if: matrix.php == '8.3'
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist/ripex-portal
+          rsync -a ./ dist/ripex-portal/ \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='docs' \
+            --exclude='tests' \
+            --exclude='dist'
+          cd dist
+          zip -qr ripex-portal-1.5.15-performance.zip ripex-portal
+      - name: Upload installable plugin ZIP
+        if: matrix.php == '8.3'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ripex-portal-1.5.15-performance
+          path: dist/ripex-portal-1.5.15-performance.zip
+          if-no-files-found: error
+          retention-days: 14
