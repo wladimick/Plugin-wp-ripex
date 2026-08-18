@@ -59,6 +59,11 @@ final class Ripex_Portal_Observability {
 
     $action = sanitize_key(wp_unslash($_REQUEST['action']));
     if (strpos($action, 'ripex_portal_') !== 0) return '';
+
+    // Phase 08.1 control requests are intentionally excluded so checking,
+    // clearing or exporting the measurement buffer never pollutes that buffer.
+    if (strpos($action, 'ripex_portal_perf_') === 0) return '';
+
     return $action;
   }
 
@@ -197,6 +202,16 @@ final class Ripex_Portal_Observability {
 
     $fatal_type = self::fatal_summary();
     if ($fatal_type !== null) $metric['fatal_type'] = $fatal_type;
+
+    // Persist the same minimized metric in the bounded Phase 08.1 buffer.
+    // Failure to persist must never break the real RIPEX AJAX response.
+    if (class_exists('Ripex_Portal_Observability_Store')) {
+      try {
+        Ripex_Portal_Observability_Store::append($metric);
+      } catch (Throwable $e) {
+        // Intentionally silent: observability is best effort only.
+      }
+    }
 
     // Best-effort browser visibility. wp_send_json() may already have committed
     // headers, so the structured log line below remains the authoritative source.
