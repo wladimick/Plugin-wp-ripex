@@ -113,11 +113,27 @@ Detailed implementation note: `docs/performance/phases/phase-04-customers-pagina
 
 ## P1 — roles/capabilities lifecycle
 
-**Status:** next proposed phase.
+**Status:** Phase 05 implemented; integrated staging validation pending.
 
-Stop reconciling RIPEX role capabilities on every request. Run capability migrations on activation/version migration instead.
+The original `Ripex_Portal` constructor calls `ensure_roles_caps()` whenever the singleton is created, causing every normal WordPress request to repeat role/capability reconciliation and granted `shop_manager` capability copying.
+
+Phase 05:
+
+- install the existing `Ripex_Portal` singleton without invoking the capability-reconciling constructor;
+- register the exact existing constructor hook contract separately, excluding only `ensure_roles_caps()`;
+- reconcile capabilities only when a stored role-schema signature changes;
+- include RIPEX version and the granted `shop_manager` capability hash in that signature;
+- run cheap critical-role/capability checks so missing core RIPEX permissions can still self-heal;
+- leave the original activation path unchanged;
+- add CI that statically compares constructor hook registrations with the lifecycle bridge and fails if they diverge.
+
+Acceptance gate: all portal/auth/payment/AJAX hooks behave identically, RIPEX roles retain required capabilities, and normal requests stop executing the full capability reconciliation loop.
+
+Detailed implementation note: `docs/performance/phases/phase-05-roles-capabilities-lifecycle.md`.
 
 ## P1 — exports
+
+**Status:** next proposed phase.
 
 Remove unbounded order materialization from vendor/date exports where possible. Use bounded batches while preserving CSV/PDF output and authorization rules.
 
@@ -136,7 +152,7 @@ Add optional debug-only instrumentation for endpoint duration, peak memory and q
 ## Integrated deployment/test sequence
 
 1. implement agreed P0/P1 phases in the draft branch;
-2. keep PHP 8.0/8.3 and JavaScript syntax CI checks green after each phase;
+2. keep PHP 8.0/8.3, JavaScript syntax and lifecycle-parity CI checks green after each phase;
 3. deploy the complete candidate to staging;
 4. run functional parity by role;
 5. repeat browser/server captures from the baseline protocol;
