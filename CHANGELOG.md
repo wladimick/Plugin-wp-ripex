@@ -20,6 +20,11 @@ Date: 2026-08-18
 - Search preserves order ID, billing/customer, company, email, RUT, razón social, giro, vendedor and payment-title matching semantics.
 - Status/date and seller scope are applied before search totals and page counts are produced.
 - No-search orders traffic continues to use the Phase 01 path unchanged.
+- Added Phase 03 inventory backend pagination.
+- Inventory now resolves search/category/sort before WooCommerce product hydration and returns 60 rows per request instead of materializing up to ~500 product/variation objects.
+- SKU/stock search and ordering use WooCommerce `wc_product_meta_lookup`.
+- Existing inventory row fields, category behavior, stock labels, variation display and admin edit action are preserved.
+- Added previous/next inventory navigation, filtered totals, page reset on filter changes and stale-search-response protection.
 
 ### Documentation
 
@@ -29,11 +34,12 @@ Date: 2026-08-18
 - Added dedicated infrastructure recommendation and sizing rationale.
 - Added per-phase implementation notes under `docs/performance/phases/`.
 - Added Phase 02 search parity/acceptance checklist.
+- Added Phase 03 inventory pagination/performance checklist.
 
 ### Validation status
 
-- GitHub Actions syntax checks for PHP 8.0 and 8.3 are active.
-- Reportes P0, vendor-order Phase 01 and orders-search Phase 02 are implemented in the draft branch.
+- GitHub Actions checks PHP syntax on 8.0 and 8.3 and now also checks JavaScript syntax.
+- Reportes P0, vendor-order Phase 01, orders-search Phase 02 and inventory Phase 03 are implemented in the draft branch.
 - **Integrated staging functional parity and before/after performance measurements are intentionally deferred until the current optimization block is complete.**
 - No merge/deployment to production is authorized before that validation block passes.
 
