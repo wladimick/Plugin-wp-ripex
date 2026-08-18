@@ -174,22 +174,45 @@ Acceptance gate: cached/uncached payload parity, strict seller cache isolation, 
 
 Detailed implementation note: `docs/performance/phases/phase-07-cache-invalidation.md`.
 
+## P1 — observability
+
+**Status:** Phase 08 implemented; disabled by default; staging measurement validation pending.
+
+Phase 08 adds a small opt-in observer for RIPEX AJAX requests so the integrated staging block can correlate application-level behavior with browser and PHP-FPM/server captures.
+
+Implementation:
+
+- load the observer before the rest of RIPEX so it can capture request-level timing/memory once explicitly enabled;
+- remain a no-op unless `RIPEX_PORTAL_OBSERVABILITY` is true;
+- emit action, RIPEX role, duration, peak memory, memory delta, query delta, HTTP status and cache state only;
+- never emit user/customer/order/product IDs, RUT, names, emails, selected ranges, search terms, payloads, SQL text or fatal error messages;
+- classify Reportes result/inactive-customer and Inventory-category cache hit/miss/bypass states;
+- prime cache hits through the matching transient pre-filter so the endpoint does not repeat the observer's cache lookup;
+- stop probing Reportes components after a full report hit because the real endpoint returns at that point;
+- write one `[RIPEX PERF]` line through PHP `error_log()` when enabled, with best-effort response timing headers;
+- document short staging-only activation because the existing PHP error logs are already historically large.
+
+Acceptance gate: disabled mode produces no metrics; enabled staging captures contain no business identifiers; cache states match Phase 07 behavior; representative Admin/Vendedor/Bodeguero requests can be correlated with browser duration and external PHP-FPM RSS/CPU captures.
+
+Detailed implementation note: `docs/performance/phases/phase-08-observability.md`.
+
 ## P2 — HPOS compatibility
 
 Audit every direct `wp_posts`/`wp_postmeta` order access and migrate to WooCommerce order APIs/datastores. Declare HPOS compatibility only after staging validation and synchronization checks.
 
-## P2 — observability
-
-Add optional debug-only instrumentation for endpoint duration, peak memory and query count. Never log sensitive customer/order payloads.
-
 ## Integrated deployment/test sequence
 
-1. implement agreed P0/P1 phases in the draft branch;
+1. complete agreed P0/P1 code phases in the draft branch;
 2. keep PHP 8.0/8.3, JavaScript syntax and lifecycle-parity CI checks green after each phase;
-3. deploy the complete candidate to staging;
-4. run functional parity by role;
-5. repeat browser/server captures from the baseline protocol;
-6. correct any regression and rerun the block;
-7. production window with backup/rollback only after acceptance;
-8. repeat baseline tests in production;
-9. document measured before/after result for client delivery.
+3. deploy the complete candidate to staging only;
+4. enable Phase 08 observability in staging under the controlled config-change/rollback procedure;
+5. run functional parity by role;
+6. capture cold/warm application metrics plus browser Network timings;
+7. repeat external PHP-FPM RSS/CPU/server captures from the baseline protocol;
+8. validate cache invalidation with representative order/product/customer mutations;
+9. disable Phase 08 observability after the measurement window;
+10. correct any regression and rerun the block;
+11. production window with backup/rollback only after acceptance;
+12. repeat baseline tests in production without leaving debug observability enabled indefinitely;
+13. document measured before/after result for client delivery;
+14. begin the dedicated HPOS compatibility phase only after the optimized current-storage candidate is functionally accepted.
