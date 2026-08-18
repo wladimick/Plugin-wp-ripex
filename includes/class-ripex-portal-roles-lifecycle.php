@@ -37,16 +37,6 @@ final class Ripex_Portal_Roles_Lifecycle {
     // WooCommerce/other plugins have loaded by this point, so shop_manager's
     // final capability set is available for the signature comparison.
     add_action('plugins_loaded', [__CLASS__, 'maybe_migrate_roles'], 1);
-
-    // The main plugin activation callback still calls create_roles() and
-    // ensure_roles_caps(). Marking the signature here prevents a duplicate
-    // migration on the request immediately following activation.
-    if (defined('RIPEX_PORTAL_PATH')) {
-      register_activation_hook(
-        RIPEX_PORTAL_PATH . 'ripex-portal.php',
-        [__CLASS__, 'mark_schema_current']
-      );
-    }
   }
 
   private static function new_portal_without_constructor() {
@@ -177,12 +167,11 @@ final class Ripex_Portal_Roles_Lifecycle {
 
     if ($current === $desired && !self::roles_need_repair()) return;
 
+    // Activation still runs Ripex_Portal::create_roles()/ensure_roles_caps().
+    // On upgrades, or on the first request after activation, this reconciles
+    // once and only then records the completed schema signature.
     Ripex_Portal::ensure_roles_caps();
     update_option(self::OPTION_SCHEMA, $desired);
-  }
-
-  public static function mark_schema_current() {
-    update_option(self::OPTION_SCHEMA, self::desired_signature());
   }
 }
 
