@@ -20,6 +20,7 @@ The repository keeps an auditable performance record so application and infrastr
 - [Phase 06 — Export batching](docs/performance/phases/phase-06-exports-batching.md)
 - [Phase 07 — Cache and invalidation](docs/performance/phases/phase-07-cache-invalidation.md)
 - [Phase 08 — Opt-in AJAX observability](docs/performance/phases/phase-08-observability.md)
+- [Phase 08.1 — JSON capture/export](docs/performance/phases/phase-08a-json-capture-export.md)
 - [Infrastructure recommendation](docs/infrastructure/recommended-architecture.md)
 - [Changelog](CHANGELOG.md)
 
@@ -34,6 +35,7 @@ The repository keeps an auditable performance record so application and infrastr
 - P1 Export batching: Phase 06 complete; integrated staging validation pending.
 - P1 Cache/invalidation: Phase 07 complete; integrated staging validation pending.
 - Observability: Phase 08 implemented, disabled by default, intended for the controlled staging measurement window.
+- JSON capture/export: Phase 08.1 implemented; `ripex_admin` can start a clean measurement and download a bounded JSON dataset with raw samples + automatic summary while observability is enabled.
 - Next decision point: integrated staging parity/performance block before dedicated HPOS work.
 
 Pre-optimization production measurement showed approximately **432 MiB peak RSS in a single PHP-FPM worker** for an isolated Reportes load, while the RIPEX CloudLinux account is limited to 1 GiB total physical memory and production has only two PHP workers.
