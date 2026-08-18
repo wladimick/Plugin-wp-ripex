@@ -69,11 +69,29 @@ Detailed implementation note: `docs/performance/phases/phase-02-orders-search.md
 
 ## P1 — Inventario
 
-**Status:** proposed Phase 03.
+**Status:** Phase 03 implemented; integrated staging validation pending.
 
-Replace the current up-to-500 product/variation batch with true backend pagination (target 50–100 rows) and server-side sorting/filtering. Preserve the current inventory response fields and search behavior while avoiding large per-request product object collections.
+The 1.5.14 inventory path can retrieve up to 500 product/variation IDs, materialize every candidate as a WooCommerce product object, resolve category/parent/stock data and sort the complete set in PHP before returning it.
+
+Phase 03:
+
+- resolve inventory search/category/sort before object hydration;
+- use WooCommerce `wc_product_meta_lookup` for SKU/stock search and ordering;
+- preserve the current product + variation behavior when no category is selected;
+- preserve the current parent-product-only behavior when a category is selected;
+- paginate at 60 rows per request;
+- warm metadata/categories only for the requested page and required variation parents;
+- add previous/next inventory navigation and true filtered totals;
+- keep the existing 350 ms search debounce and protect against stale responses;
+- keep the main `portal.js` untouched by isolating the new inventory UI in its own script.
+
+Acceptance gate: complete inventory remains navigable with equivalent search/filter/sort/stock behavior while a normal page no longer materializes the previous ~500-object collection.
+
+Detailed implementation note: `docs/performance/phases/phase-03-inventory-pagination.md`.
 
 ## P1 — Clientes
+
+**Status:** next proposed phase.
 
 Replace up-to-1000-user multi-query loads and PHP filtering with backend pagination and targeted filters. Preserve RUT, razón social, giro, ciudad and vendedor behavior.
 
