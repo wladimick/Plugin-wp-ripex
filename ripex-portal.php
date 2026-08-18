@@ -15,6 +15,7 @@ define('RIPEX_PORTAL_URL', plugin_dir_url(__FILE__));
 
 require_once RIPEX_PORTAL_PATH . 'includes/class-ripex-portal.php';
 require_once RIPEX_PORTAL_PATH . 'includes/class-ripex-portal-roles-lifecycle.php';
+require_once RIPEX_PORTAL_PATH . 'includes/class-ripex-portal-cache-performance.php';
 require_once RIPEX_PORTAL_PATH . 'includes/class-ripex-portal-performance.php';
 require_once RIPEX_PORTAL_PATH . 'includes/class-ripex-portal-orders-performance.php';
 require_once RIPEX_PORTAL_PATH . 'includes/class-ripex-portal-orders-search-performance.php';
