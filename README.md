@@ -17,6 +17,7 @@ The repository keeps an auditable performance record so application and infrastr
 - [Phase 03 — Inventory pagination](docs/performance/phases/phase-03-inventory-pagination.md)
 - [Phase 04 — Customers pagination](docs/performance/phases/phase-04-customers-pagination.md)
 - [Phase 05 — Roles/capabilities lifecycle](docs/performance/phases/phase-05-roles-capabilities-lifecycle.md)
+- [Phase 06 — Export batching](docs/performance/phases/phase-06-exports-batching.md)
 - [Infrastructure recommendation](docs/infrastructure/recommended-architecture.md)
 - [Changelog](CHANGELOG.md)
 
@@ -28,7 +29,8 @@ The repository keeps an auditable performance record so application and infrastr
 - P1 Inventario backend pagination: Phase 03 complete; integrated staging validation pending.
 - P1 Clientes backend pagination/filtering: Phase 04 complete; integrated staging validation pending.
 - P1 Roles/capabilities lifecycle: Phase 05 complete; integrated staging validation pending.
-- Next proposed phase: bounded order exports.
+- P1 Export batching: Phase 06 complete; integrated staging validation pending.
+- Next proposed phase: cache/invalidation review, followed by the integrated staging block before HPOS work.
 
 Pre-optimization production measurement showed approximately **432 MiB peak RSS in a single PHP-FPM worker** for an isolated Reportes load, while the RIPEX CloudLinux account is limited to 1 GiB total physical memory and production has only two PHP workers.
 
