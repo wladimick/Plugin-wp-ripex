@@ -57,6 +57,12 @@ Date: 2026-08-18
 - Report and Inventory category cache probes classify hit/miss/bypass while priming cache hits for the real callback so the same transient lookup is not repeated.
 - A full Reportes cache hit does not probe the inactive-customer component, avoiding unnecessary observer work on the warm path.
 - Best-effort response timing headers are available when headers have not already been committed; the structured log line remains the authoritative Phase 08 signal.
+- Added Phase 08.1 bounded JSON performance capture/export.
+- Phase 08 metrics are retained in a non-autoload WordPress option with a default 500-sample ring-buffer cap; oldest samples are dropped and counted rather than allowing unbounded growth.
+- No public diagnostic JSON is written to `uploads`; an authenticated `ripex_admin` generates the JSON only when downloading it through the normal RIPEX nonce-protected AJAX flow.
+- Reportes gains `Nueva medición`, `Descargar métricas JSON` and a retained-sample counter while observability is enabled.
+- Control actions are excluded from observability so status/clear/export operations do not contaminate their own dataset.
+- JSON exports include runtime context, raw minimized samples and automatic action+role+cache summaries with average/median/p95/max duration, peak memory and query statistics.
 
 ### Documentation
 
@@ -72,12 +78,13 @@ Date: 2026-08-18
 - Added Phase 06 export batching, CSV parity, legacy seller-creator and performance validation documentation.
 - Added Phase 07 cache generations, invalidation matrix, cache isolation, TTL and staging validation documentation.
 - Added Phase 08 observability metric definitions, privacy boundary, activation/rollback, cache probes and staging measurement plan.
+- Added Phase 08.1 JSON capture format, buffer limits, secure export controls, automatic summaries and staging workflow documentation.
 
 ### Validation status
 
 - GitHub Actions checks PHP syntax on 8.0 and 8.3, JavaScript syntax and Phase 05 constructor/lifecycle hook parity.
-- Reportes P0 and Phases 01–08 are implemented in the draft branch.
-- Phase 08 remains disabled by default until the controlled staging measurement window.
+- Reportes P0 and Phases 01–08.1 are implemented in the draft branch.
+- Phase 08/08.1 remain disabled by default until the controlled staging measurement window.
 - **Integrated staging functional parity and before/after performance measurements are intentionally deferred until the current optimization block is complete.**
 - No merge/deployment to production is authorized before that validation block passes.
 
