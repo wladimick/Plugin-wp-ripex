@@ -196,6 +196,28 @@ Acceptance gate: disabled mode produces no metrics; enabled staging captures con
 
 Detailed implementation note: `docs/performance/phases/phase-08-observability.md`.
 
+## P1 — observability JSON capture/export
+
+**Status:** Phase 08.1 implemented; disabled together with Phase 08; staging validation pending.
+
+Phase 08.1 makes the measurement window portable and auditable without leaving a public diagnostic file on the server.
+
+Implementation:
+
+- keep a bounded, non-autoload WordPress option containing minimized Phase 08 samples;
+- default to 500 retained samples, configurable but clamped between 50 and 5000;
+- retain total/dropped counts when the ring buffer removes old samples;
+- never write a public JSON file into uploads;
+- allow only authenticated `ripex_admin` + valid RIPEX nonce to view status, clear the session or export the JSON;
+- exclude the `ripex_portal_perf_*` control requests from measurement so diagnostic controls do not pollute the data;
+- add `Nueva medición`, `Descargar métricas JSON` and sample count controls in the Reportes actions area while observability is enabled;
+- generate the JSON only on download, including runtime versions/context, raw minimized samples and automatic summaries grouped by action + role + cache state;
+- calculate average/median/p95/max duration, average/max PHP peak memory and average/max query delta for each group.
+
+Acceptance gate: a clean staging measurement can be started, exercised and downloaded as JSON; the file contains no business identifiers; summary counts match retained samples; control requests are absent from the sample list; disabling observability removes the UI and stops capture.
+
+Detailed implementation note: `docs/performance/phases/phase-08a-json-capture-export.md`.
+
 ## P2 — HPOS compatibility
 
 Audit every direct `wp_posts`/`wp_postmeta` order access and migrate to WooCommerce order APIs/datastores. Declare HPOS compatibility only after staging validation and synchronization checks.
@@ -206,13 +228,16 @@ Audit every direct `wp_posts`/`wp_postmeta` order access and migrate to WooComme
 2. keep PHP 8.0/8.3, JavaScript syntax and lifecycle-parity CI checks green after each phase;
 3. deploy the complete candidate to staging only;
 4. enable Phase 08 observability in staging under the controlled config-change/rollback procedure;
-5. run functional parity by role;
-6. capture cold/warm application metrics plus browser Network timings;
-7. repeat external PHP-FPM RSS/CPU/server captures from the baseline protocol;
-8. validate cache invalidation with representative order/product/customer mutations;
-9. disable Phase 08 observability after the measurement window;
-10. correct any regression and rerun the block;
-11. production window with backup/rollback only after acceptance;
-12. repeat baseline tests in production without leaving debug observability enabled indefinitely;
-13. document measured before/after result for client delivery;
-14. begin the dedicated HPOS compatibility phase only after the optimized current-storage candidate is functionally accepted.
+5. as `ripex_admin`, click **Nueva medición** before each isolated/integrated scenario that should become its own dataset;
+6. run functional parity by role;
+7. capture cold/warm application metrics plus browser Network timings;
+8. repeat external PHP-FPM RSS/CPU/server captures from the baseline protocol;
+9. validate cache invalidation with representative order/product/customer mutations;
+10. return to Reportes and download the corresponding Phase 08.1 JSON capture;
+11. retain the JSON together with browser/FPM/server evidence and record the session purpose;
+12. disable Phase 08 observability after the measurement window;
+13. correct any regression and rerun the block;
+14. production window with backup/rollback only after acceptance;
+15. repeat baseline tests in production without leaving debug observability enabled indefinitely;
+16. document measured before/after result for client delivery;
+17. begin the dedicated HPOS compatibility phase only after the optimized current-storage candidate is functionally accepted.
