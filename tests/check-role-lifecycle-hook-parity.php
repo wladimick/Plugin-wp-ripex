@@ -4,7 +4,8 @@
  *
  * The lifecycle bridge intentionally bypasses Ripex_Portal::__construct().
  * This test fails if hook registrations in the constructor diverge from
- * Ripex_Portal_Roles_Lifecycle::register_portal_hooks().
+ * Ripex_Portal_Roles_Lifecycle::register_portal_hooks(), or if the constructor
+ * gains a new non-hook side effect that the lifecycle bridge would skip.
  */
 
 $root = dirname(__DIR__);
@@ -70,7 +71,26 @@ function hook_statements($body) {
     return $out;
 }
 
-$constructorHooks = hook_statements(method_body($mainFile, '__construct'));
+function constructor_unexpected_code($body) {
+    $remaining = preg_replace('/\b(?:add_action|add_filter|add_shortcode)\s*\(.*?\);/s', '', $body);
+    $remaining = preg_replace('/\bself::ensure_roles_caps\s*\(\s*\)\s*;/', '', $remaining);
+
+    $tokens = token_get_all("<?php\n" . $remaining);
+    $unexpected = '';
+    foreach ($tokens as $token) {
+        if (is_array($token)) {
+            if (in_array($token[0], [T_OPEN_TAG, T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) continue;
+            $unexpected .= $token[1];
+        } else {
+            if (trim($token) === '') continue;
+            $unexpected .= $token;
+        }
+    }
+    return trim($unexpected);
+}
+
+$constructorBody = method_body($mainFile, '__construct');
+$constructorHooks = hook_statements($constructorBody);
 $lifecycleHooks = hook_statements(method_body($lifecycleFile, 'register_portal_hooks'));
 
 if ($constructorHooks !== $lifecycleHooks) {
@@ -88,4 +108,11 @@ if ($constructorHooks !== $lifecycleHooks) {
     exit(1);
 }
 
-fwrite(STDOUT, 'Phase 05 hook parity: OK (' . count($constructorHooks) . " registrations)\n");
+$unexpected = constructor_unexpected_code($constructorBody);
+if ($unexpected !== '') {
+    fwrite(STDERR, "Phase 05 constructor-side-effect guard failed. Unexpected constructor code:\n");
+    fwrite(STDERR, $unexpected . "\n");
+    exit(1);
+}
+
+fwrite(STDOUT, 'Phase 05 lifecycle parity: OK (' . count($constructorHooks) . " hook registrations; no unhandled constructor side effects)\n");
