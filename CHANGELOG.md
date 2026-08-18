@@ -42,6 +42,14 @@ Date: 2026-08-18
 - Existing seller-created semantics, export authorization, CSV columns, filenames, `count_orders` response and `_ripex_exported_to_bodega` behavior are preserved.
 - Export rows are written incrementally to a temporary stream instead of repeatedly concatenating the growing CSV string during order processing.
 - The seller export's legacy `post_author` fallback remains explicitly documented for the future HPOS compatibility phase.
+- Added Phase 07 generation-based cache invalidation.
+- Report cache keys now include role/user/range plus `orders`, `products` and `customers` data generations.
+- Admin keeps the existing 10-minute report TTL; sellers gain an isolated 5-minute report cache keyed by seller user ID.
+- `force_refresh` bypasses report/component cache reads while refreshing the current-generation values for following requests.
+- The report inactive-customer top-12 result is cached independently of date range for 10 minutes and keyed by role/user plus order/customer generations, avoiding repeated full historical passes when only the report range changes.
+- Normal order/product/customer mutations bump the relevant generation at most once per PHP request, making old transient keys unreachable without bulk deletion from `wp_options`.
+- Inventory category definitions are cached for one hour with a separate `categories` generation, so routine stock changes do not invalidate the selector.
+- Permission-sensitive order/customer/inventory row/detail responses remain uncached.
 
 ### Documentation
 
@@ -55,11 +63,12 @@ Date: 2026-08-18
 - Added Phase 04 customer directory pagination/scope checklist.
 - Added Phase 05 roles/capabilities lifecycle, activation, rollback and validation documentation.
 - Added Phase 06 export batching, CSV parity, legacy seller-creator and performance validation documentation.
+- Added Phase 07 cache generations, invalidation matrix, cache isolation, TTL and staging validation documentation.
 
 ### Validation status
 
 - GitHub Actions checks PHP syntax on 8.0 and 8.3, JavaScript syntax and Phase 05 constructor/lifecycle hook parity.
-- Reportes P0 and Phases 01–06 are implemented in the draft branch.
+- Reportes P0 and Phases 01–07 are implemented in the draft branch.
 - **Integrated staging functional parity and before/after performance measurements are intentionally deferred until the current optimization block is complete.**
 - No merge/deployment to production is authorized before that validation block passes.
 
