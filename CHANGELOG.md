@@ -36,6 +36,12 @@ Date: 2026-08-18
 - RIPEX role reconciliation is now driven by a stored schema signature containing the candidate version and the granted `shop_manager` capability hash, with critical-role repair checks.
 - The original activation path still creates/reconciles roles, and upgrades perform one migration before recording the completed signature.
 - The portal constructor hook contract is reproduced by the lifecycle bridge while keeping the same `Ripex_Portal` singleton for all endpoint bridges.
+- Added Phase 06 bounded export processing.
+- Seller `Mis pedidos` no longer starts by materializing the complete WooCommerce order history; candidate seller-created order IDs are resolved in 100-ID batches and still pass the existing `vendor_created_filter()` check.
+- Bodega/admin date export now applies `date_created` at the WooCommerce query layer and processes only the requested range in 100-order pages.
+- Existing seller-created semantics, export authorization, CSV columns, filenames, `count_orders` response and `_ripex_exported_to_bodega` behavior are preserved.
+- Export rows are written incrementally to a temporary stream instead of repeatedly concatenating the growing CSV string during order processing.
+- The seller export's legacy `post_author` fallback remains explicitly documented for the future HPOS compatibility phase.
 
 ### Documentation
 
@@ -48,11 +54,12 @@ Date: 2026-08-18
 - Added Phase 03 inventory pagination/performance checklist.
 - Added Phase 04 customer directory pagination/scope checklist.
 - Added Phase 05 roles/capabilities lifecycle, activation, rollback and validation documentation.
+- Added Phase 06 export batching, CSV parity, legacy seller-creator and performance validation documentation.
 
 ### Validation status
 
 - GitHub Actions checks PHP syntax on 8.0 and 8.3, JavaScript syntax and Phase 05 constructor/lifecycle hook parity.
-- Reportes P0 and Phases 01–05 are implemented in the draft branch.
+- Reportes P0 and Phases 01–06 are implemented in the draft branch.
 - **Integrated staging functional parity and before/after performance measurements are intentionally deferred until the current optimization block is complete.**
 - No merge/deployment to production is authorized before that validation block passes.
 
