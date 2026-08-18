@@ -1,0 +1,74 @@
+/* RIPEX Validaciones */
+
+.rpv-message {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.35;
+  min-height: 16px;
+}
+
+.rpv-message.rpv-valid {
+  color: #047857;
+}
+
+.rpv-message.rpv-invalid {
+  color: #b91c1c;
+}
+
+input.rpv-is-valid,
+select.rpv-is-valid {
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 1px rgba(16,185,129,.18) !important;
+}
+
+input.rpv-is-invalid,
+select.rpv-is-invalid {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 1px rgba(239,68,68,.18) !important;
+}
+
+.rpv-city-wrap {
+  position: relative;
+  display: block;
+}
+
+.rpv-city-dropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 999999;
+  max-height: 260px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  box-shadow: 0 18px 40px rgba(15,23,42,.18);
+  padding: 6px;
+}
+
+.rpv-city-option {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  padding: 9px 11px;
+  border-radius: 9px;
+  font-size: 14px;
+  color: #111827;
+}
+
+.rpv-city-option:hover,
+.rpv-city-option:focus {
+  background: #eef2ff;
+  color: #0121ff;
+  outline: none;
+}
+
+.rpv-city-empty {
+  padding: 10px 11px;
+  color: #6b7280;
+  font-size: 13px;
+}
