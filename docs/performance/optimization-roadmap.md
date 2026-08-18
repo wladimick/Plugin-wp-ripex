@@ -133,11 +133,28 @@ Detailed implementation note: `docs/performance/phases/phase-05-roles-capabiliti
 
 ## P1 — exports
 
-**Status:** next proposed phase.
+**Status:** Phase 06 implemented; integrated staging validation pending.
 
-Remove unbounded order materialization from vendor/date exports where possible. Use bounded batches while preserving CSV/PDF output and authorization rules.
+Two 1.5.14 export paths still materialize the complete order history before applying their real scope: seller `Mis pedidos` and admin/bodega date-range export.
+
+Phase 06:
+
+- replace seller `WC_Order_Query(limit=-1)` with targeted legacy candidate-ID batches for `_ripex_seller_id` / `shop_order.post_author`;
+- preserve the existing `vendor_created_filter()` as the final seller-created semantic check;
+- keep the seller-created export distinct from the broader seller-owned/order-scope logic;
+- apply the admin/bodega export `date_from` / `date_to` range directly through WooCommerce `date_created`;
+- process date-range orders in pages of 100 instead of one complete object collection;
+- retain only selected order IDs for the final `_ripex_exported_to_bodega` update and re-hydrate those one at a time;
+- write CSV rows incrementally to a temporary stream while preserving the existing AJAX base64 contract, headers, filenames and `count_orders` response;
+- explicitly defer replacement of the seller export's legacy `post_author` creator fallback to the dedicated HPOS phase.
+
+Acceptance gate: CSV row/column/authorization parity with 1.5.14 while neither endpoint begins by materializing the complete WooCommerce order history.
+
+Detailed implementation note: `docs/performance/phases/phase-06-exports-batching.md`.
 
 ## P1 — cache/invalidation
+
+**Status:** next proposed phase.
 
 Extend bounded cache use to stable aggregates where useful. Cache keys must include role, user scope and filter range. Invalidate on relevant order/product/customer changes rather than relying only on TTL.
 
