@@ -4,9 +4,11 @@
 
 Preserve business behavior first. Optimize query shape, memory use, pagination and caching incrementally. Every P0/P1 change must be measurable against `2026-08-18-baseline.md` and pass the functional parity checklist.
 
+The current working model is to implement several controlled phases in the same draft branch, keep CI running after each phase, and execute the full staging functional/performance test block once the agreed optimization package is complete.
+
 ## P0 — Reportes
 
-**Status:** implementation started.
+**Status:** first implementation complete; integrated staging validation pending.
 
 Root cause in 1.5.14:
 
@@ -28,13 +30,28 @@ Acceptance gate: same report values for the same role/date range, with materiall
 
 ## P0 — vendor order scope
 
-The current vendor ownership function can scan all legacy `shop_order` posts and related postmeta before pagination. Refactor toward WooCommerce datastore/HPOS-aware filtering and a persistent seller/customer mapping where necessary.
+**Status:** Phase 01 implemented; integrated staging validation pending.
 
-Acceptance gate: same seller visibility rules, no cross-seller data leakage, backend pagination occurs before object materialization.
+The 1.5.14 vendor ownership resolver scans/grouped the complete legacy `shop_order` set and relevant postmeta before the 30-row page can be produced.
+
+Phase 01:
+
+- query `_ripex_seller_id` candidates directly;
+- query `_ripex_vendedor` candidates only when no explicit seller exists;
+- resolve RIPEX-assigned customer IDs and query only `_customer_user` fallback candidates when neither explicit order vendor field exists;
+- preserve strict seller → vendor label → customer fallback precedence;
+- keep `vendor_mine_filter()` as defense in depth before returning a row;
+- keep the legacy implementation untouched underneath the bridge for simple rollback.
+
+Acceptance gate: same vendor totals/visibility, no cross-seller data leakage, lower SQL/memory cost for vendor page loads.
+
+Detailed implementation note: `docs/performance/phases/phase-01-vendor-order-scope.md`.
 
 ## P1 — Pedidos search
 
-Move search into the backend query before pagination. Current post-query filtering can miss matches outside the currently loaded page.
+**Status:** next phase.
+
+Move search into the backend query before pagination. Current post-query filtering can miss matches outside the currently loaded page. Preserve search across order number/id, customer, company, email, RUT, razón social, giro, vendedor and payment label where practical without reintroducing unbounded object scans.
 
 ## P1 — Clientes
 
@@ -48,6 +65,10 @@ Replace the current up-to-500 product/variation batch with true backend paginati
 
 Stop reconciling RIPEX role capabilities on every request. Run capability migrations on activation/version migration instead.
 
+## P1 — exports
+
+Remove unbounded order materialization from vendor/date exports where possible. Use bounded batches while preserving CSV/PDF output and authorization rules.
+
 ## P1 — cache/invalidation
 
 Extend bounded cache use to stable aggregates where useful. Cache keys must include role, user scope and filter range. Invalidate on relevant order/product/customer changes rather than relying only on TTL.
@@ -60,13 +81,14 @@ Audit every direct `wp_posts`/`wp_postmeta` order access and migrate to WooComme
 
 Add optional debug-only instrumentation for endpoint duration, peak memory and query count. Never log sensitive customer/order payloads.
 
-## Deployment sequence
+## Integrated deployment/test sequence
 
-1. branch + code review;
-2. PHP lint/static review;
-3. deploy to staging;
-4. functional parity test by role;
-5. repeat server/browser capture;
-6. production window with backup/rollback;
-7. repeat baseline tests in production;
-8. document measured before/after result.
+1. implement agreed P0/P1 phases in the draft branch;
+2. keep PHP 8.0/8.3 CI checks green after each phase;
+3. deploy the complete candidate to staging;
+4. run functional parity by role;
+5. repeat browser/server captures from the baseline protocol;
+6. correct any regression and rerun the block;
+7. production window with backup/rollback only after acceptance;
+8. repeat baseline tests in production;
+9. document measured before/after result for client delivery.
