@@ -25,6 +25,12 @@ Date: 2026-08-18
 - SKU/stock search and ordering use WooCommerce `wc_product_meta_lookup`.
 - Existing inventory row fields, category behavior, stock labels, variation display and admin edit action are preserved.
 - Added previous/next inventory navigation, filtered totals, page reset on filter changes and stale-search-response protection.
+- Added Phase 04 customer-directory pagination and set-oriented metadata loading.
+- Customer listing no longer starts with several `WP_User_Query` passes of up to 1,000 users followed by repeated per-user metadata reads.
+- Admin customer/wholesaler plus commercial-metadata fallback scope is preserved.
+- Seller customer assignment continues to use normalized `afreg_additional_42207` rules with the existing scope helper as defense in depth.
+- Customer listing now returns 50 rows per request with true filtered totals and previous/next navigation.
+- Existing RUT, razón social, giro, city/region, vendedor and customer-history drawer behavior are preserved by the Phase 04 bridge/UI.
 
 ### Documentation
 
@@ -35,11 +41,12 @@ Date: 2026-08-18
 - Added per-phase implementation notes under `docs/performance/phases/`.
 - Added Phase 02 search parity/acceptance checklist.
 - Added Phase 03 inventory pagination/performance checklist.
+- Added Phase 04 customer directory pagination/scope checklist.
 
 ### Validation status
 
-- GitHub Actions checks PHP syntax on 8.0 and 8.3 and now also checks JavaScript syntax.
-- Reportes P0, vendor-order Phase 01, orders-search Phase 02 and inventory Phase 03 are implemented in the draft branch.
+- GitHub Actions checks PHP syntax on 8.0 and 8.3 and JavaScript syntax.
+- Reportes P0, vendor-order Phase 01, orders-search Phase 02, inventory Phase 03 and customers Phase 04 are implemented in the draft branch.
 - **Integrated staging functional parity and before/after performance measurements are intentionally deferred until the current optimization block is complete.**
 - No merge/deployment to production is authorized before that validation block passes.
 
