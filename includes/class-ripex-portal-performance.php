@@ -105,9 +105,27 @@ final class Ripex_Portal_Performance {
       $this->json_err('Rango de fechas inválido.');
     }
 
-    // Keep the exact cache contract from v1.5.14.
-    $use_cache = ($role === 'ripex_admin') && !$force_refresh;
-    $transient_key = 'ripex_rep_' . md5($role . '_' . $current_user_id . '_' . $date_from . '_' . $date_to);
+    // Phase 07: generation-aware cache. Admin keeps the historical 10-minute
+    // TTL; vendor reports gain a shorter 5-minute cache. Any standard order,
+    // product/stock or customer-commercial mutation changes the generation and
+    // therefore makes the previous key unreachable immediately.
+    $has_generation_cache = class_exists('Ripex_Portal_Cache_Performance');
+    if ($has_generation_cache) {
+      $transient_key = Ripex_Portal_Cache_Performance::key(
+        'reports-result',
+        [$role, (int) $current_user_id, $date_from, $date_to],
+        ['orders', 'products', 'customers']
+      );
+      $use_cache = !$force_refresh;
+      $report_ttl = ($role === 'ripex_admin')
+        ? Ripex_Portal_Cache_Performance::REPORT_ADMIN_TTL
+        : Ripex_Portal_Cache_Performance::REPORT_VENDOR_TTL;
+    } else {
+      // Conservative fallback if the Phase 07 bridge is unavailable.
+      $transient_key = 'ripex_rep_' . md5($role . '_' . $current_user_id . '_' . $date_from . '_' . $date_to);
+      $use_cache = ($role === 'ripex_admin') && !$force_refresh;
+      $report_ttl = 10 * MINUTE_IN_SECONDS;
+    }
 
     if ($use_cache) {
       $cached = get_transient($transient_key);
@@ -259,40 +277,83 @@ final class Ripex_Portal_Performance {
       }
     });
 
-    // Historical customer data is still required by the inactive-customer table.
-    // Preserve the same semantics but restrict to revenue statuses and process the
-    // history in bounded batches so all orders are never resident simultaneously.
-    $customer_history = [];
-    $this->each_order([
-      'status' => $revenue_statuses,
-      'orderby' => 'date',
-      'order' => 'ASC',
-    ], function($order) use ($role, $current_user_id, &$customer_history) {
-      if ($role === 'ripex_vendedor' && !$this->portal_call('vendor_mine_filter', $order, $current_user_id)) return;
-
-      $dt = $order->get_date_created();
-      if (!$dt) return;
-      $ts = $dt->getTimestamp();
-      $cid = (int) $order->get_customer_id();
-      $email = trim((string) $order->get_billing_email());
-      $billing_name = trim($order->get_formatted_billing_full_name());
-      $customer_label = $billing_name !== '' ? $billing_name : ($email !== '' ? $email : ('Cliente #' . $order->get_id()));
-      $hist_key = $cid ? ('id:' . $cid) : ($email !== '' ? ('email:' . strtolower($email)) : ('name:' . strtolower($customer_label)));
-
-      if (!isset($customer_history[$hist_key])) {
-        $customer_history[$hist_key] = [
-          'name' => $customer_label,
-          'email' => $email,
-          'last_ts' => $ts,
-          'orders' => 0,
-          'revenue' => 0.0,
-        ];
+    // Phase 07 component cache: inactive customers depend on complete revenue
+    // history, role scope and customer labels, but NOT on the selected report
+    // date range. Reusing the top-12 result prevents another full historical
+    // pass when an operator changes report dates repeatedly.
+    $inactive_customers = false;
+    $inactive_cache_key = '';
+    if ($has_generation_cache) {
+      $inactive_cache_key = Ripex_Portal_Cache_Performance::key(
+        'reports-inactive-customers',
+        [$role, (int) $current_user_id],
+        ['orders', 'customers']
+      );
+      if (!$force_refresh) {
+        $inactive_customers = get_transient($inactive_cache_key);
       }
+    }
 
-      $customer_history[$hist_key]['orders']++;
-      $customer_history[$hist_key]['revenue'] += (float) $order->get_total();
-      if ($ts > $customer_history[$hist_key]['last_ts']) $customer_history[$hist_key]['last_ts'] = $ts;
-    });
+    if ($inactive_customers === false) {
+      $customer_history = [];
+      $this->each_order([
+        'status' => $revenue_statuses,
+        'orderby' => 'date',
+        'order' => 'ASC',
+      ], function($order) use ($role, $current_user_id, &$customer_history) {
+        if ($role === 'ripex_vendedor' && !$this->portal_call('vendor_mine_filter', $order, $current_user_id)) return;
+
+        $dt = $order->get_date_created();
+        if (!$dt) return;
+        $ts = $dt->getTimestamp();
+        $cid = (int) $order->get_customer_id();
+        $email = trim((string) $order->get_billing_email());
+        $billing_name = trim($order->get_formatted_billing_full_name());
+        $customer_label = $billing_name !== '' ? $billing_name : ($email !== '' ? $email : ('Cliente #' . $order->get_id()));
+        $hist_key = $cid ? ('id:' . $cid) : ($email !== '' ? ('email:' . strtolower($email)) : ('name:' . strtolower($customer_label)));
+
+        if (!isset($customer_history[$hist_key])) {
+          $customer_history[$hist_key] = [
+            'name' => $customer_label,
+            'email' => $email,
+            'last_ts' => $ts,
+            'orders' => 0,
+            'revenue' => 0.0,
+          ];
+        }
+
+        $customer_history[$hist_key]['orders']++;
+        $customer_history[$hist_key]['revenue'] += (float) $order->get_total();
+        if ($ts > $customer_history[$hist_key]['last_ts']) $customer_history[$hist_key]['last_ts'] = $ts;
+      });
+
+      $inactive_customers = [];
+      foreach ($customer_history as $row) {
+        if ($row['last_ts'] <= $inactive_cutoff) {
+          $inactive_customers[] = [
+            'name' => $row['name'],
+            'email' => $row['email'],
+            'days' => (int) floor(($now_ts - $row['last_ts']) / DAY_IN_SECONDS),
+            'revenue' => (float) $row['revenue'],
+            'orders' => (int) $row['orders'],
+            'last_date' => gmdate('d/m/Y', $row['last_ts']),
+          ];
+        }
+      }
+      usort($inactive_customers, function($a, $b) {
+        if ($a['days'] === $b['days']) return $b['revenue'] <=> $a['revenue'];
+        return $b['days'] <=> $a['days'];
+      });
+      $inactive_customers = array_slice($inactive_customers, 0, 12);
+
+      if ($inactive_cache_key !== '') {
+        set_transient(
+          $inactive_cache_key,
+          $inactive_customers,
+          Ripex_Portal_Cache_Performance::REPORT_INACTIVE_TTL
+        );
+      }
+    }
 
     $sales_series = [];
     $cursor = $start_ts;
@@ -367,25 +428,6 @@ final class Ripex_Portal_Performance {
     });
     $no_movement = array_slice($no_movement, 0, 12);
 
-    $inactive_customers = [];
-    foreach ($customer_history as $row) {
-      if ($row['last_ts'] <= $inactive_cutoff) {
-        $inactive_customers[] = [
-          'name' => $row['name'],
-          'email' => $row['email'],
-          'days' => (int) floor(($now_ts - $row['last_ts']) / DAY_IN_SECONDS),
-          'revenue' => (float) $row['revenue'],
-          'orders' => (int) $row['orders'],
-          'last_date' => gmdate('d/m/Y', $row['last_ts']),
-        ];
-      }
-    }
-    usort($inactive_customers, function($a, $b) {
-      if ($a['days'] === $b['days']) return $b['revenue'] <=> $a['revenue'];
-      return $b['days'] <=> $a['days'];
-    });
-    $inactive_customers = array_slice($inactive_customers, 0, 12);
-
     $avg_ticket = $revenue_orders > 0 ? ($total_revenue / $revenue_orders) : 0.0;
 
     $result = [
@@ -415,8 +457,11 @@ final class Ripex_Portal_Performance {
       ],
     ];
 
-    if ($role === 'ripex_admin') {
-      set_transient($transient_key, $result, 10 * MINUTE_IN_SECONDS);
+    // Admin and vendor results are safe to cache because the key includes role,
+    // user, range and all three data generations. force_refresh bypasses reads
+    // but still replaces the current-generation result for subsequent requests.
+    if ($has_generation_cache || $role === 'ripex_admin') {
+      set_transient($transient_key, $result, $report_ttl);
     }
 
     $this->json_ok($result);
