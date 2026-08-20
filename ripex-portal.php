@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RIPEX Portal (Roles & Pedidos)
  * Description: Portal moderno (frontend) para RIPEX con roles: ripex_admin, ripex_vendedor, ripex_bodeguero. Redirección post-login, bloqueo wp-admin, listado de pedidos, detalle, creación (vendedor/admin) y exportación.
- * Version: 1.5.16
+ * Version: 1.5.17
  * Author: Tibox / Wladimick
  * Text Domain: ripex-portal
  */
 
 if (!defined('ABSPATH')) exit;
 
-define('RIPEX_PORTAL_VERSION', '1.5.16');
+define('RIPEX_PORTAL_VERSION', '1.5.17');
 define('RIPEX_PORTAL_PATH', plugin_dir_path(__FILE__));
 define('RIPEX_PORTAL_URL', plugin_dir_url(__FILE__));
 
@@ -20,6 +20,11 @@ require_once RIPEX_PORTAL_PATH . 'includes/class-ripex-portal-profiler.php';
 require_once RIPEX_PORTAL_PATH . 'includes/class-ripex-portal-observability-store.php';
 require_once RIPEX_PORTAL_PATH . 'includes/class-ripex-portal-observability.php';
 require_once RIPEX_PORTAL_PATH . 'includes/class-ripex-portal.php';
+
+// Phase 09 is an opt-in staging prototype. The launcher/token bridge is a no-op
+// unless RIPEX_PORTAL_STANDALONE_PROTOTYPE is explicitly true.
+require_once RIPEX_PORTAL_PATH . 'includes/class-ripex-portal-standalone-prototype.php';
+
 require_once RIPEX_PORTAL_PATH . 'includes/class-ripex-portal-roles-lifecycle.php';
 require_once RIPEX_PORTAL_PATH . 'includes/class-ripex-portal-cache-performance.php';
 require_once RIPEX_PORTAL_PATH . 'includes/class-ripex-portal-performance.php';
