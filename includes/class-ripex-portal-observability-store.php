@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Phase 08.1 — bounded observability capture + secure JSON export.
+ * Phase 08.1/08.2 — bounded observability capture + secure JSON export.
  *
  * Metrics are kept in a non-autoload WordPress option while observability is
  * explicitly enabled. No public JSON file is written to uploads. A ripex_admin
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) exit;
  */
 final class Ripex_Portal_Observability_Store {
   const OPTION_BUFFER = 'ripex_portal_observability_buffer_v1';
-  const SCHEMA_VERSION = 1;
+  const SCHEMA_VERSION = 2;
   const DEFAULT_MAX_SAMPLES = 500;
 
   private static $bootstrapped = false;
@@ -137,6 +137,70 @@ final class Ripex_Portal_Observability_Store {
     ]);
   }
 
+  private static function autoload_context() {
+    if (!function_exists('wp_load_alloptions')) return null;
+
+    $alloptions = wp_load_alloptions();
+    if (!is_array($alloptions)) return null;
+
+    // Only aggregate size/count are exported; option names and values are not.
+    $serialized = serialize($alloptions);
+    return [
+      'count' => count($alloptions),
+      'serialized_bytes' => strlen($serialized),
+      'serialized_mib' => round(strlen($serialized) / 1048576, 3),
+    ];
+  }
+
+  private static function opcache_context() {
+    if (!function_exists('opcache_get_status')) {
+      return ['available' => false];
+    }
+
+    $status = @opcache_get_status(false);
+    if (!is_array($status)) {
+      return ['available' => false];
+    }
+
+    $memory = isset($status['memory_usage']) && is_array($status['memory_usage']) ? $status['memory_usage'] : [];
+    $interned = isset($status['interned_strings_usage']) && is_array($status['interned_strings_usage'])
+      ? $status['interned_strings_usage']
+      : [];
+    $stats = isset($status['opcache_statistics']) && is_array($status['opcache_statistics'])
+      ? $status['opcache_statistics']
+      : [];
+
+    return [
+      'available' => true,
+      'enabled' => !empty($status['opcache_enabled']),
+      'cache_full' => !empty($status['cache_full']),
+      'restart_pending' => !empty($status['restart_pending']),
+      'restart_in_progress' => !empty($status['restart_in_progress']),
+      'memory_mib' => [
+        'used' => isset($memory['used_memory']) ? round((float) $memory['used_memory'] / 1048576, 2) : null,
+        'free' => isset($memory['free_memory']) ? round((float) $memory['free_memory'] / 1048576, 2) : null,
+        'wasted' => isset($memory['wasted_memory']) ? round((float) $memory['wasted_memory'] / 1048576, 2) : null,
+        'wasted_pct' => isset($memory['current_wasted_percentage']) ? round((float) $memory['current_wasted_percentage'], 2) : null,
+      ],
+      'interned_strings_mib' => [
+        'buffer' => isset($interned['buffer_size']) ? round((float) $interned['buffer_size'] / 1048576, 2) : null,
+        'used' => isset($interned['used_memory']) ? round((float) $interned['used_memory'] / 1048576, 2) : null,
+        'free' => isset($interned['free_memory']) ? round((float) $interned['free_memory'] / 1048576, 2) : null,
+      ],
+      'statistics' => [
+        'num_cached_scripts' => isset($stats['num_cached_scripts']) ? (int) $stats['num_cached_scripts'] : null,
+        'num_cached_keys' => isset($stats['num_cached_keys']) ? (int) $stats['num_cached_keys'] : null,
+        'max_cached_keys' => isset($stats['max_cached_keys']) ? (int) $stats['max_cached_keys'] : null,
+        'hits' => isset($stats['hits']) ? (int) $stats['hits'] : null,
+        'misses' => isset($stats['misses']) ? (int) $stats['misses'] : null,
+        'hit_rate' => isset($stats['opcache_hit_rate']) ? round((float) $stats['opcache_hit_rate'], 3) : null,
+        'oom_restarts' => isset($stats['oom_restarts']) ? (int) $stats['oom_restarts'] : null,
+        'hash_restarts' => isset($stats['hash_restarts']) ? (int) $stats['hash_restarts'] : null,
+        'manual_restarts' => isset($stats['manual_restarts']) ? (int) $stats['manual_restarts'] : null,
+      ],
+    ];
+  }
+
   private static function runtime_context() {
     global $wp_version;
 
@@ -149,6 +213,9 @@ final class Ripex_Portal_Observability_Store {
       'wordpress_environment' => function_exists('wp_get_environment_type') ? wp_get_environment_type() : null,
       'timezone' => function_exists('wp_timezone_string') ? wp_timezone_string() : null,
       'external_object_cache' => function_exists('wp_using_ext_object_cache') ? (bool) wp_using_ext_object_cache() : null,
+      'savequeries' => defined('SAVEQUERIES') && SAVEQUERIES,
+      'autoload_options' => self::autoload_context(),
+      'opcache' => self::opcache_context(),
     ];
   }
 
@@ -202,6 +269,8 @@ final class Ripex_Portal_Observability_Store {
           'duration' => [],
           'peak_memory' => [],
           'queries' => [],
+          'request_to_ajax' => [],
+          'ajax_to_shutdown' => [],
           'http_errors' => 0,
           'fatals' => 0,
         ];
@@ -210,6 +279,13 @@ final class Ripex_Portal_Observability_Store {
       $groups[$key]['duration'][] = (float) ($sample['duration_ms'] ?? 0);
       $groups[$key]['peak_memory'][] = (float) ($sample['peak_memory_mib'] ?? 0);
       $groups[$key]['queries'][] = (float) ($sample['queries_since_ripex_boot'] ?? 0);
+
+      if (isset($sample['profile']['request_to_ajax_callback_ms']) && is_numeric($sample['profile']['request_to_ajax_callback_ms'])) {
+        $groups[$key]['request_to_ajax'][] = (float) $sample['profile']['request_to_ajax_callback_ms'];
+      }
+      if (isset($sample['profile']['ajax_callback_to_shutdown_ms']) && is_numeric($sample['profile']['ajax_callback_to_shutdown_ms'])) {
+        $groups[$key]['ajax_to_shutdown'][] = (float) $sample['profile']['ajax_callback_to_shutdown_ms'];
+      }
 
       $status = (int) ($sample['http_status'] ?? 0);
       if ($status >= 400) {
@@ -224,7 +300,25 @@ final class Ripex_Portal_Observability_Store {
 
     $rows = [];
     foreach ($groups as $group) {
-      $rows[] = [
+      $profile = null;
+      if (!empty($group['request_to_ajax']) || !empty($group['ajax_to_shutdown'])) {
+        $profile = [
+          'request_to_ajax_callback_ms' => empty($group['request_to_ajax']) ? null : [
+            'avg' => round((float) self::average($group['request_to_ajax']), 1),
+            'median' => round((float) self::percentile($group['request_to_ajax'], 0.50), 1),
+            'p95' => round((float) self::percentile($group['request_to_ajax'], 0.95), 1),
+            'max' => round((float) max($group['request_to_ajax']), 1),
+          ],
+          'ajax_callback_to_shutdown_ms' => empty($group['ajax_to_shutdown']) ? null : [
+            'avg' => round((float) self::average($group['ajax_to_shutdown']), 1),
+            'median' => round((float) self::percentile($group['ajax_to_shutdown'], 0.50), 1),
+            'p95' => round((float) self::percentile($group['ajax_to_shutdown'], 0.95), 1),
+            'max' => round((float) max($group['ajax_to_shutdown']), 1),
+          ],
+        ];
+      }
+
+      $row = [
         'action' => $group['action'],
         'role' => $group['role'],
         'cache' => $group['cache'],
@@ -246,6 +340,8 @@ final class Ripex_Portal_Observability_Store {
         'http_errors' => (int) $group['http_errors'],
         'fatals' => (int) $group['fatals'],
       ];
+      if ($profile !== null) $row['profile'] = $profile;
+      $rows[] = $row;
     }
 
     usort($rows, function($a, $b) {
