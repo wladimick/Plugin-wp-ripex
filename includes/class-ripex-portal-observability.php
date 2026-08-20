@@ -2,12 +2,12 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Phase 08 — opt-in RIPEX AJAX observability.
+ * Phase 08/08.2 — opt-in RIPEX AJAX observability.
  *
  * Disabled by default. When RIPEX_PORTAL_OBSERVABILITY is true, RIPEX portal
- * AJAX requests emit one compact, non-sensitive performance line at shutdown.
- * No request payload, user/customer/order/product IDs, names, RUTs or emails
- * are recorded.
+ * AJAX requests emit one compact, non-sensitive performance metric at shutdown.
+ * No request payload, user/customer/order/product IDs, names, RUTs, emails,
+ * search terms, SQL text or filesystem paths are recorded.
  */
 final class Ripex_Portal_Observability {
   private static $active = false;
@@ -16,6 +16,7 @@ final class Ripex_Portal_Observability {
   private static $started_at = 0.0;
   private static $queries_at_boot = 0;
   private static $memory_at_boot = 0;
+  private static $sql_time_at_boot = null;
   private static $cache = [];
 
   public static function bootstrap() {
@@ -27,11 +28,20 @@ final class Ripex_Portal_Observability {
 
     self::$active = true;
     self::$action = $action;
+
+    // REQUEST_TIME_FLOAT is the PHP request start, so duration_ms includes the
+    // common WordPress/plugin bootstrap before RIPEX itself is loaded. Phase
+    // 08.2 markers split that duration into lifecycle segments.
     self::$started_at = isset($_SERVER['REQUEST_TIME_FLOAT'])
       ? (float) $_SERVER['REQUEST_TIME_FLOAT']
       : microtime(true);
     self::$queries_at_boot = function_exists('get_num_queries') ? (int) get_num_queries() : 0;
     self::$memory_at_boot = memory_get_usage(true);
+    self::$sql_time_at_boot = self::saved_query_time_ms();
+
+    // Minimal authenticated diagnostic endpoint. It performs only the standard
+    // WordPress/RIPEX bootstrap plus login/role/nonce checks and a JSON success.
+    add_action('wp_ajax_ripex_portal_perf_ping', [__CLASS__, 'ajax_perf_ping']);
 
     // Cache probes run before the real endpoint callback. A hit is primed through
     // the matching dynamic pre_transient filter so the actual endpoint consumes
@@ -61,8 +71,11 @@ final class Ripex_Portal_Observability {
     if (strpos($action, 'ripex_portal_') !== 0) return '';
 
     // Phase 08.1 control requests are intentionally excluded so checking,
-    // clearing or exporting the measurement buffer never pollutes that buffer.
-    if (strpos($action, 'ripex_portal_perf_') === 0) return '';
+    // clearing or exporting the buffer never pollutes that buffer. The Phase
+    // 08.2 perf_ping action is the intentional exception.
+    if (strpos($action, 'ripex_portal_perf_') === 0 && $action !== 'ripex_portal_perf_ping') {
+      return '';
+    }
 
     return $action;
   }
@@ -91,6 +104,17 @@ final class Ripex_Portal_Observability {
     }
 
     return sanitize_key((string) reset($user->roles)) ?: 'other';
+  }
+
+  public static function ajax_perf_ping() {
+    if (!is_user_logged_in() || self::current_role() !== 'ripex_admin') {
+      wp_send_json_error(['message' => 'No autorizado.'], 403);
+    }
+    if (!class_exists('Ripex_Portal') || !check_ajax_referer(Ripex_Portal::NONCE_ACTION, 'nonce', false)) {
+      wp_send_json_error(['message' => 'Nonce inválido.'], 403);
+    }
+
+    wp_send_json_success(['ok' => true]);
   }
 
   private static function prime_transient($key, $component) {
@@ -180,6 +204,21 @@ final class Ripex_Portal_Observability {
     return (int) $last['type'];
   }
 
+  private static function saved_query_time_ms() {
+    if (!defined('SAVEQUERIES') || !SAVEQUERIES) return null;
+
+    global $wpdb;
+    if (!$wpdb || !isset($wpdb->queries) || !is_array($wpdb->queries)) return null;
+
+    $seconds = 0.0;
+    foreach ($wpdb->queries as $query) {
+      if (is_array($query) && isset($query[1]) && is_numeric($query[1])) {
+        $seconds += (float) $query[1];
+      }
+    }
+    return $seconds * 1000;
+  }
+
   public static function emit() {
     if (!self::$active || self::$emitted) return;
     self::$emitted = true;
@@ -195,10 +234,22 @@ final class Ripex_Portal_Observability {
       'duration_ms' => round($duration_ms, 1),
       'peak_memory_mib' => round($peak_bytes / 1048576, 1),
       'memory_delta_mib' => round(max(0, $current_bytes - self::$memory_at_boot) / 1048576, 1),
+      'queries_before_ripex_boot' => max(0, self::$queries_at_boot),
       'queries_since_ripex_boot' => max(0, $query_now - self::$queries_at_boot),
+      'queries_total' => max(0, $query_now),
       'http_status' => function_exists('http_response_code') ? (int) http_response_code() : 0,
       'cache' => self::$cache,
     ];
+
+    if (class_exists('Ripex_Portal_Profiler') && Ripex_Portal_Profiler::active()) {
+      $profile = Ripex_Portal_Profiler::snapshot();
+      if (is_array($profile)) $metric['profile'] = $profile;
+    }
+
+    $sql_time_now = self::saved_query_time_ms();
+    if (self::$sql_time_at_boot !== null && $sql_time_now !== null) {
+      $metric['sql_time_ms_since_ripex_boot'] = round(max(0, $sql_time_now - self::$sql_time_at_boot), 1);
+    }
 
     $fatal_type = self::fatal_summary();
     if ($fatal_type !== null) $metric['fatal_type'] = $fatal_type;
