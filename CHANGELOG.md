@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.5.17 — candidate / Phase 09 standalone prototype
+
+Date: 2026-08-20
+
+### Architecture / performance prototype
+
+- Added an opt-in, staging-first standalone orders prototype that leaves the existing `/portal-pedidos/` implementation unchanged.
+- The prototype launcher is disabled by default and requires `RIPEX_PORTAL_STANDALONE_PROTOTYPE=true`.
+- Only an authenticated `ripex_admin` can mint a five-minute HMAC-signed prototype token through the normal RIPEX nonce-protected WordPress request.
+- The standalone HTML shell loads RIPEX CSS/JavaScript directly without OceanWP, Elementor, WooCommerce frontend assets or the normal WordPress page renderer.
+- The read-only API uses WordPress `SHORTINIT` only to obtain the configured database connection and salts; themes, plugins, WooCommerce objects and the normal WordPress lifecycle are not loaded.
+- The first standalone endpoint lists legacy `shop_order` rows in 30-order pages using prepared SELECT-only queries and returns billing/customer, AFREG, status, payment, seller, export, total/currency and shipping data needed for a side-by-side staging comparison.
+- Each standalone response reports total request time, SHORTINIT time, database query count and PHP allocated peak memory.
+- No existing RIPEX AJAX callbacks are replaced and no order/customer/product/cart/stock writes are introduced by the prototype.
+- Vendor/bodega authorization, search/filter parity, write operations and HPOS support remain explicitly out of scope until the read-only prototype is validated.
+
+### Documentation
+
+- Added `docs/performance/phases/phase-09-standalone-orders-prototype.md` with architecture, security boundary, staging workflow and rollback.
+
+### Validation status
+
+- Candidate requires syntax/CI validation before staging installation.
+- Production remains unchanged; the prototype is disabled unless explicitly enabled.
+
 ## 1.5.16 — candidate / Phase 08.2 profiler
 
 Date: 2026-08-20
