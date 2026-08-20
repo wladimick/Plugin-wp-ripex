@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.5.16 — candidate / Phase 08.2 profiler
+
+Date: 2026-08-20
+
+### Performance / observability
+
+- Added Phase 08.2 segmented RIPEX AJAX profiling while keeping observability opt-in and disabled by default.
+- Each observed request now records fixed lifecycle markers for RIPEX bootstrap, `plugins_loaded`, `init`, `wp_loaded`, `admin_init`, AJAX callback start and shutdown.
+- JSON samples include `queries_before_ripex_boot`, `queries_since_ripex_boot`, total queries, segment durations and query deltas without recording SQL text or request payloads.
+- Added an authenticated `ripex_portal_perf_ping` endpoint that performs only normal bootstrap plus login/role/nonce validation and a minimal JSON response, allowing the common WordPress/RIPEX request floor to be measured separately from business endpoints.
+- Reportes observability controls now include `Ping diagnóstico ×5` for five sequential minimal samples.
+- JSON runtime context now includes aggregate autoload option count/serialized size and aggregate PHP-FPM OPcache usage/hit/restart counters when available, without exporting option names/values or cached script paths.
+- If `SAVEQUERIES` is already enabled, Phase 08.2 records only aggregate SQL time since RIPEX boot; the plugin does not enable `SAVEQUERIES` itself.
+- Existing status/clear/export control requests remain excluded from observability; only the diagnostic ping is intentionally included.
+- No database tables, indexes, cron jobs, roles, order/customer/product mutations or cache semantics are changed by this phase.
+
+### Documentation
+
+- Added `docs/performance/phases/phase-08b-segmented-profiler.md` with marker definitions, privacy boundary, interpretation guidance, staging validation and rollback.
+
+### Validation status
+
+- Candidate requires syntax/CI validation and controlled staging installation before performance interpretation.
+- Production remains unchanged by the plugin candidate; Phase 08.2 is intended for staging validation first.
+
 ## 1.5.15 — candidate / performance P0-P1
 
 Date: 2026-08-18
