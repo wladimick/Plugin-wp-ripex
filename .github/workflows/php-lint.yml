@@ -37,10 +37,13 @@ jobs:
         shell: bash
         run: php tests/check-role-lifecycle-hook-parity.php
       - name: Build installable plugin ZIP
+        id: package
         if: matrix.php == '8.3'
         shell: bash
         run: |
           set -euo pipefail
+          VERSION="$(php -r '$c=file_get_contents("ripex-portal.php"); if (!preg_match("/define\\(\x27RIPEX_PORTAL_VERSION\x27, \x27([^\x27]+)\x27\\)/", $c, $m)) { exit(1); } echo $m[1];')"
+          PACKAGE="ripex-portal-${VERSION}-performance"
           rm -rf dist
           mkdir -p dist/ripex-portal
           rsync -a ./ dist/ripex-portal/ \
@@ -50,12 +53,13 @@ jobs:
             --exclude='tests' \
             --exclude='dist'
           cd dist
-          zip -qr ripex-portal-1.5.15-performance.zip ripex-portal
+          zip -qr "${PACKAGE}.zip" ripex-portal
+          echo "name=${PACKAGE}" >> "$GITHUB_OUTPUT"
       - name: Upload installable plugin ZIP
         if: matrix.php == '8.3'
         uses: actions/upload-artifact@v4
         with:
-          name: ripex-portal-1.5.15-performance
-          path: dist/ripex-portal-1.5.15-performance.zip
+          name: ${{ steps.package.outputs.name }}
+          path: dist/${{ steps.package.outputs.name }}.zip
           if-no-files-found: error
           retention-days: 14
