@@ -71,6 +71,22 @@
       : '';
   }
 
+  async function runDiagnosticPings(button, statusEl){
+    setBusy(button, true, 'Ping 0/5...');
+    for (let i = 1; i <= 5; i++) {
+      button.textContent = `Ping ${i}/5...`;
+      const result = await post('ripex_portal_perf_ping', {});
+      if (!result.success) {
+        setBusy(button, false);
+        window.alert(result.data?.message || 'No se pudo completar el ping diagnóstico.');
+        await refreshStatus(statusEl);
+        return;
+      }
+    }
+    setBusy(button, false);
+    await refreshStatus(statusEl);
+  }
+
   function install(){
     if (document.getElementById('rp-perf-export-json')) return;
 
@@ -82,6 +98,13 @@
     clearBtn.id = 'rp-perf-clear';
     clearBtn.className = 'rp-btn';
     clearBtn.textContent = 'Nueva medición';
+
+    const pingBtn = document.createElement('button');
+    pingBtn.type = 'button';
+    pingBtn.id = 'rp-perf-ping';
+    pingBtn.className = 'rp-btn';
+    pingBtn.textContent = 'Ping diagnóstico ×5';
+    pingBtn.title = 'Mide el piso común de WordPress/RIPEX con cinco solicitudes mínimas autenticadas.';
 
     const exportBtn = document.createElement('button');
     exportBtn.type = 'button';
@@ -99,6 +122,7 @@
 
     const parent = anchor.parentElement;
     parent.insertBefore(clearBtn, anchor);
+    parent.insertBefore(pingBtn, anchor);
     parent.insertBefore(exportBtn, anchor);
     parent.insertBefore(status, anchor);
 
@@ -115,6 +139,10 @@
         return;
       }
       await refreshStatus(status);
+    });
+
+    pingBtn.addEventListener('click', async () => {
+      await runDiagnosticPings(pingBtn, status);
     });
 
     exportBtn.addEventListener('click', async () => {
